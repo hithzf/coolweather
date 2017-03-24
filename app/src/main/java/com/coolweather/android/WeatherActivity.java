@@ -1,5 +1,6 @@
 package com.coolweather.android;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Build;
@@ -9,6 +10,7 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -21,6 +23,7 @@ import android.widget.Toast;
 import com.bumptech.glide.Glide;
 import com.coolweather.android.gson.Forecast;
 import com.coolweather.android.gson.Weather;
+import com.coolweather.android.service.AutoUpdateService;
 import com.coolweather.android.util.HttpUtil;
 import com.coolweather.android.util.Utility;
 
@@ -52,6 +55,8 @@ public class WeatherActivity extends AppCompatActivity {
 
     public DrawerLayout drawerLayout;
     private Button navButton;
+
+    private String mWeatherId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,24 +95,24 @@ public class WeatherActivity extends AppCompatActivity {
         }else {
             loadBingPic();
         }
-        final String weatherId;
         //加载天气数据
         if(weatherString != null){
             //有缓存直接解析天气数据
             Weather weather = Utility.handleWeatherResponse(weatherString);
-            weatherId = weather.basic.weatherId;
+            mWeatherId = weather.basic.weatherId;
             showWeatherInfo(weather);
         }else {
             //无缓存时去服务器查询天气
-            weatherId = getIntent().getStringExtra("weather_id");
+            mWeatherId = getIntent().getStringExtra("weather_id");
             weatherLayout.setVisibility(View.INVISIBLE);//将ScrollView隐藏，不然没有数据的界面会很不好看
-            requestWeather(weatherId);
+            requestWeather(mWeatherId);
         }
         //设置刷新事件
         swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                requestWeather(weatherId);
+                Log.d("WeatherActivity", mWeatherId);
+                requestWeather(mWeatherId);
             }
         });
         //设置切换城市点击事件
@@ -188,6 +193,9 @@ public class WeatherActivity extends AppCompatActivity {
         sportText.setText(sport);
         //ScrollView设为可见
         weatherLayout.setVisibility(View.VISIBLE);
+        //开启服务，自动更新天气
+        Intent intent = new Intent(this, AutoUpdateService.class);
+        startService(intent);
     }
 
     /**
@@ -220,8 +228,9 @@ public class WeatherActivity extends AppCompatActivity {
                             //将请求到的数据存储到SharedPreference
                             SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this).edit();
                             editor.putString("weather", responseText);
+                            Log.d("WeatherActivity", responseText);
                             editor.apply();
-
+                            mWeatherId = weather.basic.weatherId;//很重要，否则下拉刷新之后回到原来的打开app时的城市
                             showWeatherInfo(weather);
                         }else {
                             Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
